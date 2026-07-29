@@ -205,6 +205,51 @@
   }
   .msg.show{display:block}
 
+  /* ---- 설정 / 버전 패널 ---- */
+  .set{
+    margin-top:12px;background:#1A1E22;border:1px solid #262B30;border-radius:12px;padding:0 14px;
+  }
+  .set summary{
+    cursor:pointer;list-style:none;padding:13px 0;
+    font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8A9096;
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+  }
+  .set summary::-webkit-details-marker{display:none}
+  .set summary::after{content:"+";font-size:15px;color:#5E656B;margin-left:auto}
+  .set[open] summary::after{content:"−"}
+  .set[open] summary{border-bottom:1px solid #23282C;margin-bottom:12px}
+  .set label{display:block;font-size:11.5px;color:#9AA1A7;margin-bottom:13px}
+  .set label em{float:right;font-style:normal;font-family:var(--mono);font-size:11px;color:#D5DADE}
+  .set select{
+    width:100%;margin-top:6px;font:inherit;font-size:12.5px;
+    background:#12161A;color:#D5DADE;border:1px solid #333A40;border-radius:8px;padding:8px 9px;
+  }
+  .set input[type=range]{
+    width:100%;margin-top:9px;-webkit-appearance:none;appearance:none;
+    height:4px;border-radius:2px;background:#333A40;outline:none;
+  }
+  .set input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;
+    background:#E6E9EB;cursor:pointer;border:3px solid #1A1E22;box-shadow:0 0 0 1px #4A5157;
+  }
+  .set input[type=range]::-moz-range-thumb{
+    width:14px;height:14px;border-radius:50%;background:#E6E9EB;cursor:pointer;border:none;
+  }
+  .set input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:3px}
+  .set .row{padding-bottom:13px}
+
+  .ver{padding-bottom:14px;max-height:230px;overflow-y:auto}
+  .ver .v{padding:10px 0;border-bottom:1px solid #23282C}
+  .ver .v:last-child{border-bottom:none}
+  .ver .vh{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+  .ver .vh b{font-family:var(--mono);font-size:11px;color:#DE9A34;font-weight:700}
+  .ver .vh i{font-style:normal;font-family:var(--mono);font-size:9.5px;color:#6E757B}
+  .ver .v ul{list-style:none;margin:0;padding:0}
+  .ver .v li{
+    font-size:12px;line-height:1.65;color:#A9B0B6;padding-left:11px;position:relative;margin-bottom:2px;
+  }
+  .ver .v li::before{content:"·";position:absolute;left:2px;color:#5E656B}
+
   /* ---- 소리 설정 ---- */
   .set{
     margin-top:12px;background:#1A1E22;border:1px solid #262B30;border-radius:12px;
@@ -309,12 +354,13 @@
 
       <div class="info">
         <div class="kv"><span>저장한 카드</span><b id="cntTx">0</b></div>
-        <div class="kv"><span>말 빠르기</span><b id="paceTx">보통</b></div>
+        <div class="kv"><span>되묻기</span><b id="missTx">0</b></div>
+        <div class="kv"><span>말 빠르기</span><b id="paceTx">재는 중</b></div>
         <div class="meter"><i id="meterFill"></i></div>
       </div>
 
       <div style="margin-top:20px; background:#1A1E22; border:1px solid #262B30; border-radius:12px; padding:14px;">
-        <div class="panel-cap" style="color:#8A9096; margin-bottom:12px;">소리 직관 설정</div>
+        <div class="panel-cap" style="color:#8A9096; margin-bottom:12px;">소리 · 빠르게 조절</div>
         <div class="row" style="margin-top:0;">
           <button class="mini" id="btnSpeedDown">느리게 말해줘</button>
           <button class="mini" id="btnSpeedUp">빠르게 말해줘</button>
@@ -323,10 +369,47 @@
           <button class="mini" id="btnVolDown">작게 말해줘</button>
           <button class="mini" id="btnVolUp">크게 말해줘</button>
         </div>
+        <div class="row">
+          <button class="mini" id="btnLow">낮은 목소리로</button>
+          <button class="mini" id="btnReset">기본으로</button>
+        </div>
         <div class="row" style="margin-top:12px;">
           <button class="mini accent" id="testBtn">이 설정으로 소리 시험</button>
         </div>
       </div>
+
+      <details class="set" id="setDetail">
+        <summary>세부 설정</summary>
+
+        <label>목소리
+          <select id="voiceSel"><option value="">자동으로 고르기</option></select>
+        </label>
+
+        <label>읽는 속도 <em id="rateTx">0.85</em>
+          <input type="range" id="rateIn" min="0.5" max="1.4" step="0.05" value="0.85">
+        </label>
+
+        <label>목소리 높이 <em id="pitchTx">1.00</em>
+          <input type="range" id="pitchIn" min="0.6" max="1.5" step="0.05" value="1">
+        </label>
+
+        <label>소리 크기 <em id="volTx">100%</em>
+          <input type="range" id="volIn" min="0.1" max="1" step="0.05" value="1">
+        </label>
+
+        <label>문장 사이 쉼 <em id="gapTx">보통</em>
+          <input type="range" id="gapIn" min="0" max="2" step="1" value="1">
+        </label>
+
+        <div class="row" style="margin-top:4px">
+          <button class="mini" id="tryBtn">이 설정으로 들어보기</button>
+        </div>
+      </details>
+
+      <details class="set" id="verDetail">
+        <summary>버전 기록 <span id="verNow" style="color:#DE9A34;letter-spacing:0">v1.4</span></summary>
+        <div class="ver" id="verList"></div>
+      </details>
 
       <div class="msg" id="msg"></div>
 
@@ -674,14 +757,25 @@ function waitVoices(){
   });
 }
 
-let currentRate = 0.85;
-let currentVol = 1.0;
-
 const SET={
-  rate: () => currentRate,
-  pitch: () => 1.0,
-  vol: () => currentVol,
-  voice: () => koVoice
+  _n(id,d){ const el=document.getElementById(id); const v=el?parseFloat(el.value):NaN; return isNaN(v)?d:v; },
+  rate(){  return SET._n('rateIn', 0.85); },
+  pitch(){ return SET._n('pitchIn', 1.0); },
+  vol(){   return SET._n('volIn', 1.0); },
+  gap(){   return SET._n('gapIn', 1); },
+  voice(){
+    const el=document.getElementById('voiceSel');
+    if(!el || !el.value) return koVoice;
+    const list=speechSynthesis.getVoices()||[];
+    return list.find(x=>x.name===el.value) || koVoice;
+  },
+  set(id,v){
+    const el=document.getElementById(id);
+    if(!el) return;
+    const min=parseFloat(el.min), max=parseFloat(el.max);
+    el.value = Math.min(max, Math.max(min, v));
+    if(typeof syncSet==='function') syncSet();
+  }
 };
 
 function tryRead(text, useVoice){
@@ -844,11 +938,33 @@ async function voiceTest(){
   await speak('또박. 소리 시험입니다');
 }
 
+/* ---- 말 빠르기 측정 ----
+   저장한 메모 수가 아니라 실제로 들린 말의 속도를 잰다.
+   한국어 대화는 대체로 초당 4~6음절이다. */
+let heardChars=0, heardMs=0, listenFrom=0, missed=0;
+
+function paceNow(){
+  let ms=heardMs;
+  if(listening && listenFrom) ms += (Date.now()-listenFrom);
+  const sec=ms/1000;
+  if(sec<6 || heardChars<12) return null;   // 표본이 적으면 판단하지 않음
+  return heardChars/sec;                    // 초당 글자 수
+}
+
 function updateInfo(){
   cntTx.textContent=total;
-  meterFill.style.width=Math.min(total*18,100)+'%';
-  paceTx.textContent = total>=5 ? '빠름' : (total>=3 ? '조금 빠름' : '보통');
+  if($('missTx')) $('missTx').textContent=missed;
+
+  const p=paceNow();
+  if(p===null){
+    paceTx.textContent='재는 중';
+    meterFill.style.width='0%';
+    return;
+  }
+  paceTx.textContent = p>=7 ? '빠름' : p>=5.5 ? '조금 빠름' : p>=3.5 ? '보통' : '느림';
+  meterFill.style.width = Math.min(Math.round(p/9*100),100)+'%';
 }
+setInterval(()=>{ if(listening) updateInfo(); }, 3000);
 
 /* =========================================================
    4. 음성 인식
@@ -877,6 +993,7 @@ function buildRec(){
     if(interim){ liveTx.textContent=interim; liveTx.className='interim'; }
     if(final){
       liveTx.textContent=final; liveTx.className='';
+      heardChars += final.replace(/\s/g,'').length;
       flashSave();
       addCard(final);
     }
@@ -903,6 +1020,7 @@ function buildRec(){
 async function start(){
   if(listening) return;
   listening=true;
+  listenFrom=Date.now();
   document.body.classList.add('listening');
   ledTx.textContent='듣고 있어요';
   mainTx.textContent='듣기 멈춤';
@@ -924,6 +1042,8 @@ async function start(){
 }
 
 function stop(){
+  if(listening && listenFrom){ heardMs += Date.now()-listenFrom; }
+  listenFrom=0;
   listening=false;
   document.body.classList.remove('listening');
   drawMark(MARK);
@@ -932,6 +1052,7 @@ function stop(){
   mainSub.textContent='누르면 말을 글자로 바꿉니다';
   sttStat.textContent='대기';
   if(rec){ try{ rec.stop(); }catch(e){} }
+  updateInfo();
   log('인식 멈춤');
 }
 
@@ -982,7 +1103,7 @@ async function readLoop(){
         buf=buf.slice(i+1);
         if(!line) continue;
         log('◀ '+line);
-        if(line.indexOf('START')>=0) start();
+        if(line.indexOf('START')>=0){ missed++; updateInfo(); start(); }
         else if(line.indexOf('STOP')>=0) stop();
       }
     }
@@ -1026,25 +1147,126 @@ mainBtn.addEventListener('click',toggle);
 serBtn.addEventListener('click',connectSerial);
 demoBtn.addEventListener('click',demo);
 
-/* ---- 소리 직관 설정 ---- */
+/* =========================================================
+   버전 기록
+   ========================================================= */
+const VERSION='1.4';
+const CHANGELOG=[
+  {v:'1.4', d:'2026-07-29', list:[
+    '말 빠르기를 저장 개수가 아니라 실제 발화 속도로 측정',
+    '되묻기 횟수를 따로 표시',
+    '소리 설정을 빠른 조절과 세부 설정으로 분리',
+    '목소리 선택 · 높이 · 문장 사이 쉼 조절 추가',
+    '버전 기록 화면 추가'
+  ]},
+  {v:'1.3', d:'2026-07-29', list:[
+    '메모를 100개까지 보관하고 드래그로 지난 기록 열람',
+    '카드마다 저장 시각과 경과 시간 표시',
+    '몇 번째 메모인지 화면과 음성 모두에 안내',
+    '모두 읽기를 최근 3개로 제한하고 중간 멈춤 가능'
+  ]},
+  {v:'1.2', d:'2026-07-28', list:[
+    '핵심을 못 뽑아도 문장을 그대로 카드에 보존',
+    '문장 속 숫자·시각에 형광 표시',
+    '세 시간을 3시로 읽던 오류 수정',
+    '식후 삼십 분, 본관 삼층 표기 정상화'
+  ]},
+  {v:'1.1', d:'2026-07-28', list:[
+    '읽어주기 재시도 구조로 교체',
+    '가운뎃점과 콜론을 말로 바꿔 어절 끊김 해결',
+    '읽는 중 음성인식 일시 정지',
+    '소리 시험 기능 추가'
+  ]},
+  {v:'1.0', d:'2026-07-27', list:[
+    '음성인식 · 카드 3장 · 읽어주기 기본 구성',
+    '마이크로비트 시리얼 연동',
+    '시연 문장 대체 경로'
+  ]}
+];
+
+(function renderVersions(){
+  const el=document.getElementById('verList');
+  if(!el) return;
+  const now=document.getElementById('verNow');
+  if(now) now.textContent='v'+VERSION;
+  el.innerHTML=CHANGELOG.map(c=>
+    '<div class="v"><div class="vh"><b>v'+c.v+'</b><i>'+c.d+'</i></div><ul>'+
+    c.list.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>'
+  ).join('');
+})();
+
+/* =========================================================
+   소리 설정
+   ========================================================= */
+const GAPNAME=['없음','보통','길게'];
+function syncSet(){
+  const set=(id,v)=>{ const e=document.getElementById(id); if(e) e.textContent=v; };
+  set('rateTx',  SET.rate().toFixed(2));
+  set('pitchTx', SET.pitch().toFixed(2));
+  set('volTx',   Math.round(SET.vol()*100)+'%');
+  set('gapTx',   GAPNAME[SET.gap()] || '보통');
+}
+['rateIn','pitchIn','volIn','gapIn'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el) el.addEventListener('input',syncSet);
+});
+
+function fillVoices(){
+  const sel=document.getElementById('voiceSel');
+  if(!sel) return;
+  const cur=sel.value;
+  const vs=speechSynthesis.getVoices()||[];
+  const ko=vs.filter(v=>v.lang && v.lang.toLowerCase().replace('_','-').indexOf('ko')===0);
+  const rest=vs.filter(v=>ko.indexOf(v)<0);
+  sel.innerHTML='<option value="">자동으로 고르기</option>';
+  const add=(list,label)=>{
+    if(!list.length) return;
+    const g=document.createElement('optgroup'); g.label=label;
+    list.forEach(v=>{
+      const o=document.createElement('option');
+      o.value=v.name; o.textContent=v.name+' ('+v.lang+')';
+      g.appendChild(o);
+    });
+    sel.appendChild(g);
+  };
+  add(ko,'한국어'); add(rest,'그 밖의 언어');
+  if(cur) sel.value=cur;
+}
+if('speechSynthesis' in window){
+  fillVoices();
+  speechSynthesis.onvoiceschanged=()=>{ loadVoices(); fillVoices(); };
+}
+syncSet();
+
+const tryBtn=document.getElementById('tryBtn');
+if(tryBtn) tryBtn.addEventListener('click',()=>speak('또박. 7월 31일 금요일, 오전 9시 30분, 병원'));
+
+/* ---- 빠르게 조절 : 슬라이더 값을 같이 움직인다 ---- */
 btnSpeedUp.addEventListener('click', async () => {
-  currentRate = Math.min(1.4, currentRate + 0.15);
+  SET.set('rateIn', SET.rate()+0.15);
   await speak("조금 더 빠르게 말할게요.");
 });
-
 btnSpeedDown.addEventListener('click', async () => {
-  currentRate = Math.max(0.5, currentRate - 0.15);
+  SET.set('rateIn', SET.rate()-0.15);
   await speak("조금 더 느리게 말할게요.");
 });
-
 btnVolUp.addEventListener('click', async () => {
-  currentVol = Math.min(1.0, currentVol + 0.2);
+  SET.set('volIn', SET.vol()+0.2);
   await speak("조금 더 크게 말할게요.");
 });
-
 btnVolDown.addEventListener('click', async () => {
-  currentVol = Math.max(0.2, currentVol - 0.2);
+  SET.set('volIn', SET.vol()-0.2);
   await speak("조금 더 작게 말할게요.");
+});
+// 고령 난청은 높은 소리부터 안 들리는 경우가 많아 낮추는 선택지를 둔다
+document.getElementById('btnLow').addEventListener('click', async () => {
+  SET.set('pitchIn', SET.pitch()-0.15);
+  await speak("조금 더 낮은 목소리로 말할게요.");
+});
+document.getElementById('btnReset').addEventListener('click', async () => {
+  SET.set('rateIn',0.85); SET.set('pitchIn',1.0); SET.set('volIn',1.0); SET.set('gapIn',1);
+  const sel=document.getElementById('voiceSel'); if(sel) sel.value='';
+  await speak("기본 설정으로 돌아왔어요.");
 });
 
 testBtn.addEventListener('click', async () => {
