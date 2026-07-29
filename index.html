@@ -160,6 +160,42 @@
   }
   .msg.show{display:block}
 
+  /* ---- 소리 설정 ---- */
+  .set{
+    margin-top:12px;background:#1A1E22;border:1px solid #262B30;border-radius:12px;
+    padding:0 14px;
+  }
+  .set summary{
+    cursor:pointer;list-style:none;padding:13px 0;
+    font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8A9096;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .set summary::-webkit-details-marker{display:none}
+  .set summary::after{content:"+";font-size:15px;color:#5E656B}
+  .set[open] summary::after{content:"−"}
+  .set[open] summary{border-bottom:1px solid #23282C;margin-bottom:12px}
+  .set label{
+    display:block;font-size:11.5px;color:#9AA1A7;margin-bottom:13px;
+  }
+  .set label em{float:right;font-style:normal;font-family:var(--mono);font-size:11px;color:#D5DADE}
+  .set select{
+    width:100%;margin-top:6px;font:inherit;font-size:12.5px;
+    background:#12161A;color:#D5DADE;border:1px solid #333A40;border-radius:8px;padding:8px 9px;
+  }
+  .set input[type=range]{
+    width:100%;margin-top:9px;-webkit-appearance:none;appearance:none;
+    height:4px;border-radius:2px;background:#333A40;outline:none;
+  }
+  .set input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;
+    background:#E6E9EB;cursor:pointer;border:3px solid #1A1E22;box-shadow:0 0 0 1px #4A5157;
+  }
+  .set input[type=range]::-moz-range-thumb{
+    width:14px;height:14px;border-radius:50%;background:#E6E9EB;cursor:pointer;border:none;
+  }
+  .set input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:3px}
+  .set .row{padding-bottom:13px}
+
   .log{
     margin-top:12px;background:#0D1013;border:1px solid #262B30;border-radius:10px;
     padding:11px 12px;height:110px;overflow-y:auto;
@@ -230,6 +266,34 @@
         <div class="kv"><span>말 빠르기</span><b id="paceTx">보통</b></div>
         <div class="meter"><i id="meterFill"></i></div>
       </div>
+
+      <details class="set">
+        <summary>소리 설정</summary>
+
+        <label>목소리
+          <select id="voiceSel"><option value="">자동</option></select>
+        </label>
+
+        <label>읽는 속도 <em id="rateTx">0.85</em>
+          <input type="range" id="rateIn" min="0.5" max="1.4" step="0.05" value="0.85">
+        </label>
+
+        <label>목소리 높이 <em id="pitchTx">1.0</em>
+          <input type="range" id="pitchIn" min="0.6" max="1.5" step="0.05" value="1">
+        </label>
+
+        <label>소리 크기 <em id="volTx">100%</em>
+          <input type="range" id="volIn" min="0" max="1" step="0.05" value="1">
+        </label>
+
+        <label>문장 사이 쉼 <em id="gapTx">보통</em>
+          <input type="range" id="gapIn" min="0" max="2" step="1" value="1">
+        </label>
+
+        <div class="row" style="margin-top:4px">
+          <button class="mini" id="tryBtn">이 설정으로 들어보기</button>
+        </div>
+      </details>
 
       <div class="msg" id="msg"></div>
 
@@ -473,8 +537,21 @@ function render(){
 }
 
 let curUtter=null;   // 크롬이 발화 중인 객체를 수거해 버리는 문제 방지
+let resumeTimer=null;
 
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// 화면용 표기를 사람이 말하듯 바꾼다.
+// 가운뎃점이나 콜론을 그대로 읽히면 어절마다 끊어진다.
+function toSpeech(s){
+  const g=(typeof SET!=='undefined') ? SET.gap() : 1;
+  const sep = g===0 ? ' ' : (g===1 ? ', ' : '. ');
+  return s
+    .replace(/\s*·\s*/g,sep)
+    .replace(/(\d{1,2}):(\d{2})/g,(m,h,mi)=> mi==='00' ? h+'시' : h+'시 '+parseInt(mi,10)+'분')
+    .replace(/\s{2,}/g,' ')
+    .trim();
+}
 
 function waitVoices(){
   return new Promise(res=>{
@@ -489,29 +566,59 @@ function waitVoices(){
 }
 
 // 한 번 읽기를 시도하고 결과를 문자열로 돌려준다
+// 사용자가 고른 소리 설정
+const SET={
+  num(id,dflt){ const el=$(id); const v=el?parseFloat(el.value):NaN; return isNaN(v)?dflt:v; },
+  rate(){ return SET.num('rateIn',0.85); },
+  pitch(){ return SET.num('pitchIn',1); },
+  vol(){ return SET.num('volIn',1); },
+  gap(){ return SET.num('gapIn',1); },
+  voice(){
+    const el=$('voiceSel');
+    if(!el || !el.value) return koVoice;
+    const list=speechSynthesis.getVoices()||[];
+    return list.find(x=>x.name===el.value) || koVoice;
+  }
+};
+
 function tryRead(text, useVoice){
   return new Promise(resolve=>{
     const u=new SpeechSynthesisUtterance(text);
     curUtter=u;
-    u.lang='ko-KR'; u.rate=0.82; u.pitch=1; u.volume=1;
-    if(useVoice && koVoice) u.voice=koVoice;
+    u.lang='ko-KR';
+    u.rate=SET.rate();
+    u.pitch=SET.pitch();
+    u.volume=SET.vol();
+    const pick=SET.voice();
+    if(useVoice && pick) u.voice=pick;
 
-    let done=false;
-    const finish=v=>{ if(done) return; done=true; resolve(v); };
+    let done=false, started=false;
+    const finish=v=>{
+      if(done) return; done=true;
+      clearInterval(resumeTimer); resumeTimer=null;
+      resolve({result:v, started:started});
+    };
 
-    u.onstart=()=>log('읽기 시작');
+    u.onstart=()=>{
+      started=true;
+      log('읽기 시작');
+      // 크롬이 긴 문장에서 스스로 멈추는 것을 막는다
+      clearInterval(resumeTimer);
+      resumeTimer=setInterval(()=>{
+        if(speechSynthesis.speaking && !speechSynthesis.paused) speechSynthesis.resume();
+      },4000);
+    };
     u.onend  =()=>finish('ok');
     u.onerror=e=>finish(e.error||'error');
 
     try{
-      speechSynthesis.resume();      // 멈춤 상태로 걸려 있는 경우 대비
       speechSynthesis.speak(u);
     }catch(err){ finish('throw'); }
 
-    // 아무 반응 없이 조용한 경우
+    // 시작조차 안 한 경우에만 실패로 본다. 읽는 중이면 절대 끼어들지 않는다.
     setTimeout(()=>{
-      if(!done && !speechSynthesis.speaking && !speechSynthesis.pending) finish('silent');
-    },1300);
+      if(!done && !started && !speechSynthesis.speaking && !speechSynthesis.pending) finish('silent');
+    },1600);
   });
 }
 
@@ -520,7 +627,8 @@ async function speak(c){
     showMsg('이 브라우저는 읽어주기를 지원하지 않습니다.');
     return;
   }
-  const text = typeof c==='string' ? c : (c.key ? c.key+'. '+c.raw : c.raw);
+  const src = typeof c==='string' ? c : (c.key ? c.key+', '+c.raw : c.raw);
+  const text = toSpeech(src);
 
   speaking=true;
 
@@ -528,21 +636,21 @@ async function speak(c){
   if(listening && rec){ try{ rec.stop(); }catch(e){} await sleep(260); }
 
   await waitVoices();
-  if(speechSynthesis.speaking || speechSynthesis.pending){ speechSynthesis.cancel(); await sleep(120); }
+  if(speechSynthesis.speaking || speechSynthesis.pending){ speechSynthesis.cancel(); await sleep(150); }
 
   // 1차: 한국어 음성 지정
   let r = await tryRead(text, true);
 
-  // 2차: 음성 지정 없이 (지정 자체가 막는 경우가 있음)
-  if(r!=='ok' && r!=='interrupted' && r!=='canceled'){
-    log('1차 실패 ('+r+') · 기본 음성으로 재시도');
+  // 시작조차 못 했을 때만 다시 시도한다. 읽다가 끊긴 경우는 재시도하지 않는다.
+  if(!r.started && r.result!=='ok'){
+    log('시작 실패 ('+r.result+') · 기본 음성으로 재시도');
     speechSynthesis.cancel();
-    await sleep(150);
+    await sleep(180);
     r = await tryRead(text, false);
   }
 
-  if(r!=='ok' && r!=='interrupted' && r!=='canceled'){
-    log('읽어주기 실패: '+r);
+  if(!r.started && r.result!=='ok'){
+    log('읽어주기 실패: '+r.result);
     showMsg('읽어주기가 동작하지 않습니다. [소리 시험]을 눌러 로그를 확인해 주세요. 한국어 음성이 없으면 윈도우 설정 → 시간 및 언어 → 음성 → 음성 추가 에서 한국어를 설치하면 됩니다.');
   }else{
     log('읽어줌 → '+text);
@@ -750,6 +858,49 @@ mainBtn.addEventListener('click',toggle);
 serBtn.addEventListener('click',connectSerial);
 demoBtn.addEventListener('click',demo);
 $('testBtn').addEventListener('click',voiceTest);
+
+/* ---- 소리 설정 ---- */
+const GAPNAME=['없음','보통','길게'];
+function syncSet(){
+  $('rateTx').textContent = SET.rate().toFixed(2);
+  $('pitchTx').textContent= SET.pitch().toFixed(2);
+  $('volTx').textContent  = Math.round(SET.vol()*100)+'%';
+  $('gapTx').textContent  = GAPNAME[SET.gap()] || '보통';
+}
+['rateIn','pitchIn','volIn','gapIn'].forEach(id=>{
+  const el=$(id);
+  if(el) el.addEventListener('input',syncSet);
+});
+$('tryBtn').addEventListener('click',()=>speak('또박. 7월 31일 금요일, 오전 9시 30분, 병원'));
+
+function fillVoices(){
+  const sel=$('voiceSel');
+  if(!sel) return;
+  const cur=sel.value;
+  const vs=speechSynthesis.getVoices()||[];
+  const ko=vs.filter(v=>v.lang && v.lang.toLowerCase().replace('_','-').indexOf('ko')===0);
+  const rest=vs.filter(v=>ko.indexOf(v)<0);
+  sel.innerHTML='<option value="">자동으로 고르기</option>';
+  const add=(list,label)=>{
+    if(!list.length) return;
+    const g=document.createElement('optgroup'); g.label=label;
+    list.forEach(v=>{
+      const o=document.createElement('option');
+      o.value=v.name; o.textContent=v.name+' ('+v.lang+')';
+      g.appendChild(o);
+    });
+    sel.appendChild(g);
+  };
+  add(ko,'한국어');
+  add(rest,'그 밖의 언어');
+  if(cur) sel.value=cur;
+}
+if('speechSynthesis' in window){
+  fillVoices();
+  const prev=speechSynthesis.onvoiceschanged;
+  speechSynthesis.onvoiceschanged=()=>{ loadVoices(); fillVoices(); };
+}
+syncSet();
 clearBtn.addEventListener('click',()=>{
   cards=[]; total=0; render(); updateInfo(); log('카드 비움');
 });
