@@ -90,23 +90,55 @@
   .live p.interim{color:#9AA0A4}
   .live p.idle{font-size:14px;color:var(--muted)}
 
-  .cards{margin-top:12px;display:flex;flex-direction:column;gap:9px;min-height:60px}
+  .cards{
+    margin-top:12px;display:flex;flex-direction:column;gap:9px;min-height:60px;
+    max-height:min(52vh,460px);overflow-y:auto;overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;cursor:grab;
+    padding-right:4px;scrollbar-width:thin;scrollbar-color:#C3C7C2 transparent;
+  }
+  .cards::-webkit-scrollbar{width:7px}
+  .cards::-webkit-scrollbar-thumb{background:#C3C7C2;border-radius:4px}
+  .cards::-webkit-scrollbar-track{background:transparent}
+  .cards.dragging{cursor:grabbing;user-select:none}
+  .cards.dragging *{pointer-events:none}
   .card{
     background:#fff;border:1px solid #E4E0D6;border-left:5px solid var(--ink);
     border-radius:11px;padding:13px 15px;width:100%;font:inherit;text-align:left;cursor:pointer;
     display:flex;align-items:baseline;gap:13px;animation:drop .35s cubic-bezier(.2,.8,.3,1);
+    flex:0 0 auto;
   }
   .card:first-child{border-left-color:var(--red)}
   .card:hover{background:#FAF9F5}
   .card:focus-visible{outline:2.5px solid var(--red);outline-offset:2px}
+  /* 지난 기록 */
+  .card.old{
+    background:#F4F2ED;border-color:#DFDBD1;border-left-color:#C6C2B8;
+    padding:10px 14px;
+  }
+  .card.old .c-key{font-size:16px;color:#3E4347;margin-bottom:3px}
+  .card.old .c-raw{font-size:12.5px;-webkit-line-clamp:2;color:#767C80}
+  .card.old .c-raw.big{font-size:14px;font-weight:500;color:#4A5054}
+  .card.old .c-raw mark{background:#EFE4C6}
+  .divider{
+    display:flex;align-items:center;gap:10px;margin:6px 2px 2px;flex:0 0 auto;
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:#8C918C;
+  }
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:#C6C9C4}
   @keyframes drop{from{opacity:0;transform:translateY(-9px)}to{opacity:1;transform:none}}
   .c-tag{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:#8A8F93;flex:0 0 auto;min-width:40px;padding-top:3px}
   .c-body{flex:1;min-width:0}
+  .c-meta{
+    display:flex;align-items:center;gap:7px;margin-bottom:6px;
+    font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:#A2A7AA;
+  }
+  .c-meta b{color:#DE9A34;font-weight:700}
+  .c-meta i{font-style:normal;color:#C6CACC}
+  .card.old .c-meta{margin-bottom:4px;font-size:9.5px}
+  .card.old .c-meta b{color:#B9A277}
   .c-key{
     display:block;font-size:19px;font-weight:800;letter-spacing:-.015em;line-height:1.3;
     color:var(--ink);margin-bottom:5px;
   }
-  .c-idx{font-size:13px;color:#DE9A34;margin-right:6px;vertical-align:middle;}
   .c-raw{
     display:block;font-size:14px;line-height:1.6;color:#5C6266;
     display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
@@ -484,7 +516,26 @@ function makeCard(text){
   if(g.place) bits.push(g.place);
   if(g.dept)  bits.push(g.dept);
 
-  return { tag:pickTag(raw), key:bits.join(' · '), raw:raw, index:0 };
+  return { tag:pickTag(raw), key:bits.join(' · '), raw:raw, index:0, at:new Date() };
+}
+
+// 저장 시각을 사람이 읽는 형태로
+function timeLabel(d){
+  if(!(d instanceof Date)) return '';
+  let h=d.getHours();
+  const ap = h<12 ? '오전' : '오후';
+  h = h%12; if(h===0) h=12;
+  return ap+' '+h+':'+String(d.getMinutes()).padStart(2,'0');
+}
+
+// 얼마나 지났는지
+function agoLabel(d){
+  if(!(d instanceof Date)) return '';
+  const s=Math.floor((Date.now()-d.getTime())/1000);
+  if(s<60) return '방금';
+  if(s<3600) return Math.floor(s/60)+'분 전';
+  if(s<86400) return Math.floor(s/3600)+'시간 전';
+  return Math.floor(s/86400)+'일 전';
 }
 
 function escapeHtml(s){
@@ -503,15 +554,18 @@ function mark(s){
 /* =========================================================
    3. 카드 관리
    ========================================================= */
+const KEEP_RECENT = 3;    // 크게 보여줄 최근 카드 수
+const KEEP_MAX    = 100;  // 전체 보관 한도
+
 function addCard(text){
   total++;
   const c=makeCard(text);
-  if(!c){ total--; return false; } 
-  
-  c.index = total; // 부여된 고유 번호 할당
+  if(!c){ total--; return false; }
+
+  c.index = total;
   cards.unshift(c);
-  if(cards.length>3) cards.pop();
-  
+  if(cards.length>KEEP_MAX) cards.pop();
+
   render();
   updateInfo();
   log(c.index+'번 저장 → '+(c.key || c.raw.slice(0,16)));
@@ -524,20 +578,62 @@ function render(){
     cardsEl.innerHTML='<div class="cards-empty">중요한 말이 카드로 남습니다<br>카드를 누르면 다시 읽어 줍니다</div>';
     return;
   }
-  cards.forEach(c=>{
+
+  cards.forEach((c,i)=>{
+    // 최근 3개 아래로는 지난 기록으로 구분
+    if(i===KEEP_RECENT){
+      const d=document.createElement('div');
+      d.className='divider';
+      d.textContent='지난 기록 '+(cards.length-KEEP_RECENT)+'개';
+      cardsEl.appendChild(d);
+    }
+
     const b=document.createElement('button');
-    b.className='card';
+    b.className = 'card' + (i>=KEEP_RECENT ? ' old' : '');
+
     let inner='<span class="c-tag">'+c.tag+'</span><span class="c-body">';
-    if(c.key) inner+=`<span class="c-key"><span class="c-idx">${c.index}.</span>${escapeHtml(c.key)}</span>`;
-    inner+='<span class="'+(c.key?'c-raw':'c-raw big')+'">';
-    if(!c.key) inner+=`<span class="c-idx">${c.index}.</span>`;
-    inner+=mark(c.raw)+'</span>';
+    inner+='<span class="c-meta"><b>'+c.index+'번째 메모</b><i>·</i>'+
+           timeLabel(c.at)+'<i>·</i>'+agoLabel(c.at)+'</span>';
+    if(c.key) inner+='<span class="c-key">'+escapeHtml(c.key)+'</span>';
+    inner+='<span class="'+(c.key?'c-raw':'c-raw big')+'">'+mark(c.raw)+'</span>';
     inner+='</span><span class="c-hint">듣기</span>';
+
     b.innerHTML=inner;
     b.addEventListener('click',()=>speak(c));
     cardsEl.appendChild(b);
   });
 }
+
+/* 드래그로 지난 기록 넘겨 보기 */
+(function enableDragScroll(el){
+  if(!el) return;
+  let down=false, startY=0, startTop=0, moved=false;
+
+  el.addEventListener('mousedown',e=>{
+    if(e.button!==0) return;
+    down=true; moved=false; startY=e.pageY; startTop=el.scrollTop;
+  });
+  window.addEventListener('mousemove',e=>{
+    if(!down) return;
+    const dy=e.pageY-startY;
+    if(!moved && Math.abs(dy)>5){ moved=true; el.classList.add('dragging'); }
+    if(moved) el.scrollTop = startTop - dy;
+  });
+  window.addEventListener('mouseup',()=>{
+    if(!down) return;
+    down=false;
+    // 드래그였다면 바로 뒤에 오는 클릭을 한 번 막는다
+    if(moved){
+      const block=ev=>{ ev.stopPropagation(); ev.preventDefault(); };
+      el.addEventListener('click',block,{capture:true,once:true});
+      setTimeout(()=>el.removeEventListener('click',block,{capture:true}),0);
+    }
+    el.classList.remove('dragging');
+  });
+})(cardsEl);
+
+// 경과 시간 표시를 주기적으로 갱신
+setInterval(()=>{ if(cards.length) render(); }, 60000);
 
 let curUtter=null;
 let resumeTimer=null;
@@ -641,7 +737,7 @@ async function speak(c, isSequence = false){
     src = c;
   } else {
     src = (c.key ? c.key+', '+c.raw : c.raw);
-    prefix = c.index ? `${c.index}번 기록입니다. ` : ""; // 로딩 안내 음성 추가
+    prefix = c.index ? `${c.index}번째 메모입니다. ${timeLabel(c.at)}. ` : "";
   }
 
   const text = prefix + toSpeech(src);
