@@ -729,7 +729,14 @@ async function speak(c, isSequence = false){
     showMsg('이 브라우저는 읽어주기를 지원하지 않습니다.');
     return;
   }
-  
+
+  // 낱개 카드를 누르면 진행 중이던 연속 읽기를 끊는다
+  if(!isSequence && readingAll){
+    cancelAll=true; readingAll=false; setReadAllBtn(false);
+    try{ speechSynthesis.cancel(); }catch(e){}
+    await sleep(150);
+  }
+
   let src = "";
   let prefix = "";
   
@@ -779,24 +786,50 @@ async function speak(c, isSequence = false){
 }
 
 // 한 번에 모두 읽기 기능
-async function speakAll() {
-  if (cards.length === 0) {
-    showMsg('읽을 카드가 없습니다.');
-    return;
+let readingAll=false, cancelAll=false;
+
+function setReadAllBtn(on){
+  const b=$('readAllBtn');
+  if(!b) return;
+  b.textContent = on ? '읽기 멈춤' : '모두 읽기';
+  b.classList.toggle('accent', !on);
+}
+
+// 읽고 있는 것을 모두 멈춘다
+function stopSpeaking(){
+  cancelAll=true;
+  try{ speechSynthesis.cancel(); }catch(e){}
+  clearInterval(resumeTimer); resumeTimer=null;
+  speaking=false;
+  readingAll=false;
+  setReadAllBtn(false);
+  log('읽기 멈춤');
+}
+
+// 최근 3개만 오래된 것부터 차례로 읽는다
+async function speakAll(){
+  if(readingAll){ stopSpeaking(); return; }
+
+  const list = cards.slice(0, KEEP_RECENT).reverse();
+  if(!list.length){ showMsg('읽을 카드가 없습니다.'); return; }
+
+  readingAll=true; cancelAll=false;
+  setReadAllBtn(true);
+  hideMsg();
+
+  if(listening && rec){ try{ rec.stop(); }catch(e){} await sleep(600); }
+
+  for(const c of list){
+    if(cancelAll) break;
+    await speak(c, true);
+    if(cancelAll) break;
+    await sleep(400);
   }
-  
-  // 연속 읽기를 위해 음성인식을 먼저 완전히 끔
-  if (listening && rec) { try { rec.stop(); } catch(e){} await sleep(600); }
-  
-  // 카드를 시간순(오래된 순)으로 정렬하여 차례대로 읽기
-  const chronologicalCards = cards.slice().reverse();
-  for (let i = 0; i < chronologicalCards.length; i++) {
-     await speak(chronologicalCards[i], true); // 연속 읽기 모드 플래그 전달
-     await sleep(400); // 문장 사이 틈
-  }
-  
-  // 모두 읽기가 끝난 후 음성인식 복구
-  if (listening && rec) { try { rec.start(); } catch(e){} }
+
+  readingAll=false;
+  setReadAllBtn(false);
+  if(!cancelAll) log('모두 읽기 완료 · '+list.length+'개');
+  if(listening && rec){ try{ rec.start(); }catch(e){} }
 }
 
 async function voiceTest(){
@@ -1022,6 +1055,7 @@ testBtn.addEventListener('click', async () => {
 readAllBtn.addEventListener('click', speakAll);
 
 clearBtn.addEventListener('click', () => {
+  if(readingAll || speaking) stopSpeaking();
   cards = []; total = 0; render(); updateInfo(); log('카드 비움');
 });
 
