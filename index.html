@@ -103,9 +103,10 @@
   .c-tag{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:#8A8F93;flex:0 0 auto;min-width:40px;padding-top:3px}
   .c-body{flex:1;min-width:0}
   .c-key{
-    display:block;font-size:21px;font-weight:800;letter-spacing:-.015em;line-height:1.3;
+    display:block;font-size:19px;font-weight:800;letter-spacing:-.015em;line-height:1.3;
     color:var(--ink);margin-bottom:5px;
   }
+  .c-idx{font-size:13px;color:#DE9A34;margin-right:6px;vertical-align:middle;}
   .c-raw{
     display:block;font-size:14px;line-height:1.6;color:#5C6266;
     display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
@@ -137,12 +138,13 @@
 
   .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
   .mini{
-    flex:1;min-width:110px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;
-    background:#1C2125;border:1px solid #363C41;border-radius:10px;padding:11px 12px;color:#D5DADE;
+    flex:1;min-width:80px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;
+    background:#1C2125;border:1px solid #363C41;border-radius:10px;padding:11px 10px;color:#D5DADE;
   }
   .mini:hover{background:#242A2F}
   .mini:focus-visible{outline:2px solid #fff;outline-offset:2px}
   .mini.on{background:#1D3328;border-color:#2E5A42;color:#8FE0B4}
+  .mini.accent{background:#2E3F4A;border-color:#3E5A6A;color:#A9D6EF;}
 
   .info{
     margin-top:14px;background:#1A1E22;border:1px solid #262B30;border-radius:12px;padding:14px;
@@ -259,6 +261,7 @@
       <div class="row">
         <button class="mini" id="testBtn">소리 시험</button>
         <button class="mini" id="clearBtn">카드 비우기</button>
+        <button class="mini accent" id="readAllBtn">모두 읽기</button>
       </div>
 
       <div class="info">
@@ -317,7 +320,7 @@
 const $ = id => document.getElementById(id);
 const liveTx=$('liveTx'), cardsEl=$('cards'), ledTx=$('ledTx'),
       mainBtn=$('mainBtn'), mainTx=$('mainTx'), mainSub=$('mainSub'),
-      serBtn=$('serBtn'), demoBtn=$('demoBtn'), clearBtn=$('clearBtn'), testBtn=$('testBtn'),
+      serBtn=$('serBtn'), demoBtn=$('demoBtn'), clearBtn=$('clearBtn'), testBtn=$('testBtn'), readAllBtn=$('readAllBtn'),
       sttStat=$('sttStat'), serStat=$('serStat'), modeTx=$('modeTx'),
       cntTx=$('cntTx'), paceTx=$('paceTx'), meterFill=$('meterFill'),
       msgEl=$('msg'), logEl=$('log'), markEl=$('mark');
@@ -403,7 +406,6 @@ function extract(text){
   const t=text.replace(/\s+/g,' ');
   const got={};
 
-  // 시각
   reTime.lastIndex=0;
   const mt=reTime.exec(t);
   if(mt){
@@ -419,7 +421,6 @@ function extract(text){
     }
   }
 
-  // 날짜
   let md;
   if((md=reDateA.exec(t))) got.date=md[1]+'월 '+md[2]+'일';
   else if((md=reDateC.exec(t))) got.date=(md[1]==='다음'||md[1]==='담'?'다음 주 ':'이번 주 ')+md[2]+'요일';
@@ -427,12 +428,10 @@ function extract(text){
   else if((md=reDateE.exec(t))) got.date=md[1]+' 뒤';
   else if((md=reDateD.exec(t))) got.date=md[1]+'요일';
 
-  // 번호
   let mn;
   if((mn=reNumA.exec(t))) got.num=mn[1]+'번';
   else if((mn=reNumB.exec(t))){ const s=sinoSeq(mn[1]); if(s) got.num=s+'번'; }
 
-  // 복용
   const mdo=reDose.exec(t);
   if(mdo){ const n=toNum(mdo[1]); if(n) got.dose='하루 '+n+'번'; }
   const mm=reMeal.exec(t);
@@ -442,7 +441,6 @@ function extract(text){
     got.meal=s;
   }
 
-  // 장소
   const mf=reFloor.exec(t);
   if(mf){
     const s=mf[1].replace(/\s+/g,'');
@@ -485,14 +483,13 @@ function makeCard(text){
   if(g.place) bits.push(g.place);
   if(g.dept)  bits.push(g.dept);
 
-  return { tag:pickTag(raw), key:bits.join(' · '), raw:raw };
+  return { tag:pickTag(raw), key:bits.join(' · '), raw:raw, index:0 };
 }
 
 function escapeHtml(s){
   return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
-// 숫자와 시간·번호 표현을 문장 안에서 굵게
 function mark(s){
   return escapeHtml(s)
     .replace(/(\d+\s*(?:시|분|번|일|월|층|알|정|개|주일)?)/g,'<mark>$1</mark>')
@@ -506,14 +503,17 @@ function mark(s){
    3. 카드 관리
    ========================================================= */
 function addCard(text){
+  total++;
   const c=makeCard(text);
-  if(!c){ return false; }
+  if(!c){ total--; return false; } 
+  
+  c.index = total; // 부여된 고유 번호 할당
   cards.unshift(c);
   if(cards.length>3) cards.pop();
-  total++;
+  
   render();
   updateInfo();
-  log('저장 → '+(c.key || c.raw.slice(0,16)));
+  log(c.index+'번 저장 → '+(c.key || c.raw.slice(0,16)));
   return true;
 }
 
@@ -527,8 +527,10 @@ function render(){
     const b=document.createElement('button');
     b.className='card';
     let inner='<span class="c-tag">'+c.tag+'</span><span class="c-body">';
-    if(c.key) inner+='<span class="c-key">'+escapeHtml(c.key)+'</span>';
-    inner+='<span class="'+(c.key?'c-raw':'c-raw big')+'">'+mark(c.raw)+'</span>';
+    if(c.key) inner+=`<span class="c-key"><span class="c-idx">${c.index}.</span>${escapeHtml(c.key)}</span>`;
+    inner+='<span class="'+(c.key?'c-raw':'c-raw big')+'">';
+    if(!c.key) inner+=`<span class="c-idx">${c.index}.</span>`;
+    inner+=mark(c.raw)+'</span>';
     inner+='</span><span class="c-hint">듣기</span>';
     b.innerHTML=inner;
     b.addEventListener('click',()=>speak(c));
@@ -536,13 +538,11 @@ function render(){
   });
 }
 
-let curUtter=null;   // 크롬이 발화 중인 객체를 수거해 버리는 문제 방지
+let curUtter=null;
 let resumeTimer=null;
 
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
-// 화면용 표기를 사람이 말하듯 바꾼다.
-// 가운뎃점이나 콜론을 그대로 읽히면 어절마다 끊어진다.
 function toSpeech(s){
   const g=(typeof SET!=='undefined') ? SET.gap() : 1;
   const sep = g===0 ? ' ' : (g===1 ? ', ' : '. ');
@@ -565,8 +565,6 @@ function waitVoices(){
   });
 }
 
-// 한 번 읽기를 시도하고 결과를 문자열로 돌려준다
-// 사용자가 고른 소리 설정
 const SET={
   num(id,dflt){ const el=$(id); const v=el?parseFloat(el.value):NaN; return isNaN(v)?dflt:v; },
   rate(){ return SET.num('rateIn',0.85); },
@@ -602,7 +600,6 @@ function tryRead(text, useVoice){
     u.onstart=()=>{
       started=true;
       log('읽기 시작');
-      // 크롬이 긴 문장에서 스스로 멈추는 것을 막는다
       clearInterval(resumeTimer);
       resumeTimer=setInterval(()=>{
         if(speechSynthesis.speaking && !speechSynthesis.paused) speechSynthesis.resume();
@@ -615,52 +612,88 @@ function tryRead(text, useVoice){
       speechSynthesis.speak(u);
     }catch(err){ finish('throw'); }
 
-    // 시작조차 안 한 경우에만 실패로 본다. 읽는 중이면 절대 끼어들지 않는다.
     setTimeout(()=>{
       if(!done && !started && !speechSynthesis.speaking && !speechSynthesis.pending) finish('silent');
     },1600);
   });
 }
 
-async function speak(c){
+// speak() 함수 개선: 객체일 때 안내 음성을 추가하고, 잘림 방지를 위해 딜레이 대폭 향상
+async function speak(c, isSequence = false){
   if(!('speechSynthesis' in window)){
     showMsg('이 브라우저는 읽어주기를 지원하지 않습니다.');
     return;
   }
-  const src = typeof c==='string' ? c : (c.key ? c.key+', '+c.raw : c.raw);
-  const text = toSpeech(src);
+  
+  let src = "";
+  let prefix = "";
+  
+  if (typeof c === 'string') {
+    src = c;
+  } else {
+    src = (c.key ? c.key+', '+c.raw : c.raw);
+    prefix = c.index ? `${c.index}번 기록입니다. ` : ""; // 로딩 안내 음성 추가
+  }
 
+  const text = prefix + toSpeech(src);
   speaking=true;
 
-  // 읽어주는 동안 인식을 멈춘다. 안 그러면 자기 목소리를 다시 받아 적는다.
-  if(listening && rec){ try{ rec.stop(); }catch(e){} await sleep(260); }
+  // 연속 읽기 모드(isSequence)가 아닐 때만 마이크 단독 제어 (안정성 확보 위해 sleep 늘림)
+  if(!isSequence && listening && rec){ try{ rec.stop(); }catch(e){} await sleep(600); }
 
   await waitVoices();
-  if(speechSynthesis.speaking || speechSynthesis.pending){ speechSynthesis.cancel(); await sleep(150); }
+  
+  // 찌꺼기 비운 후 넉넉히 대기
+  if(speechSynthesis.speaking || speechSynthesis.pending){ speechSynthesis.cancel(); await sleep(300); }
 
-  // 1차: 한국어 음성 지정
+  // 꼼수 1: 더미(Wake-up) 음성으로 엔진 시동 걸기
+  let wakeUp = new SpeechSynthesisUtterance(" ");
+  wakeUp.volume = 0;
+  speechSynthesis.speak(wakeUp);
+  await sleep(150);
+
+  // 1차: 한국어 음성 지정 시도
   let r = await tryRead(text, true);
 
-  // 시작조차 못 했을 때만 다시 시도한다. 읽다가 끊긴 경우는 재시도하지 않는다.
   if(!r.started && r.result!=='ok'){
     log('시작 실패 ('+r.result+') · 기본 음성으로 재시도');
     speechSynthesis.cancel();
-    await sleep(180);
+    await sleep(300);
     r = await tryRead(text, false);
   }
 
   if(!r.started && r.result!=='ok'){
     log('읽어주기 실패: '+r.result);
-    showMsg('읽어주기가 동작하지 않습니다. [소리 시험]을 눌러 로그를 확인해 주세요. 한국어 음성이 없으면 윈도우 설정 → 시간 및 언어 → 음성 → 음성 추가 에서 한국어를 설치하면 됩니다.');
+    showMsg('읽어주기가 동작하지 않습니다. 소리 설정을 확인해 주세요.');
   }else{
     log('읽어줌 → '+text);
   }
 
   speaking=false;
-  if(listening && rec){ try{ rec.start(); }catch(e){} }
+  if(!isSequence && listening && rec){ try{ rec.start(); }catch(e){} }
 }
 
-// 진단용
+// 한 번에 모두 읽기 기능
+async function speakAll() {
+  if (cards.length === 0) {
+    showMsg('읽을 카드가 없습니다.');
+    return;
+  }
+  
+  // 연속 읽기를 위해 음성인식을 먼저 완전히 끔
+  if (listening && rec) { try { rec.stop(); } catch(e){} await sleep(600); }
+  
+  // 카드를 시간순(오래된 순)으로 정렬하여 차례대로 읽기
+  const chronologicalCards = cards.slice().reverse();
+  for (let i = 0; i < chronologicalCards.length; i++) {
+     await speak(chronologicalCards[i], true); // 연속 읽기 모드 플래그 전달
+     await sleep(400); // 문장 사이 틈
+  }
+  
+  // 모두 읽기가 끝난 후 음성인식 복구
+  if (listening && rec) { try { rec.start(); } catch(e){} }
+}
+
 async function voiceTest(){
   hideMsg();
   if(!('speechSynthesis' in window)){ log('speechSynthesis 없음'); return; }
@@ -714,17 +747,17 @@ function buildRec(){
   r.onerror=ev=>{
     log('오류: '+ev.error);
     if(ev.error==='not-allowed'){
-      showMsg('마이크 권한이 거부되었습니다. 주소창 왼쪽 자물쇠에서 마이크를 허용해 주세요. 파일을 직접 열었다면 권한이 막힐 수 있으니, 이 파일을 다운로드해 크롬에서 여는 것이 좋습니다.');
+      showMsg('마이크 권한이 거부되었습니다.');
       stop();
     }else if(ev.error==='network'){
-      showMsg('인터넷 연결이 필요합니다. 음성인식은 온라인에서만 동작합니다.');
+      showMsg('인터넷 연결이 필요합니다.');
       stop();
     }
   };
 
   r.onend=()=>{
     sttStat.textContent = listening ? '재시작' : '대기';
-    if(listening && !speaking){ try{ r.start(); }catch(e){} }   // 끊기면 자동 재시작
+    if(listening && !speaking){ try{ r.start(); }catch(e){} } 
   };
   return r;
 }
@@ -739,9 +772,6 @@ async function start(){
   liveTx.textContent='말씀하세요…'; liveTx.className='idle';
   hideMsg();
 
-  // 마이크를 한 번만 잡아서 계속 쥐고 있는다.
-  // 이렇게 하면 인식이 끊겼다 다시 시작해도 권한을 다시 묻지 않는다.
-  // 실패해도 인식 자체는 시도한다. (file:// 로 열면 여기서 막힐 수 있음)
   if(!micStream && navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
     try{
       micStream=await navigator.mediaDevices.getUserMedia({audio:true});
@@ -781,7 +811,7 @@ let port=null;
 
 async function connectSerial(){
   if(!('serial' in navigator)){
-    showMsg('이 브라우저는 마이크로비트 연결(Web Serial)을 지원하지 않습니다. 크롬·엣지·웨일에서 열어 주세요.');
+    showMsg('이 브라우저는 마이크로비트 연결(Web Serial)을 지원하지 않습니다.');
     return;
   }
   try{
@@ -858,6 +888,7 @@ mainBtn.addEventListener('click',toggle);
 serBtn.addEventListener('click',connectSerial);
 demoBtn.addEventListener('click',demo);
 $('testBtn').addEventListener('click',voiceTest);
+readAllBtn.addEventListener('click',speakAll); // 한 번에 모두 읽기 이벤트 연결
 
 /* ---- 소리 설정 ---- */
 const GAPNAME=['없음','보통','길게'];
