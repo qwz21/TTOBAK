@@ -120,6 +120,17 @@
     font-size:13.5px;color:var(--muted);line-height:1.7;
   }
 
+  /* device 영역(하얀 칸) 안의 버튼 스타일 */
+  .device .row {margin-top:12px; margin-bottom:12px;}
+  .device .mini {
+    background:#fff; border:1px solid #D5D1C6; color:#191B1E; box-shadow:0 2px 4px rgba(0,0,0,.03);
+  }
+  .device .mini:hover {background:#F6F4EF}
+  .device .mini:focus-visible {outline:2px solid var(--ink); outline-offset:2px}
+  .device .mini.accent {
+    background:var(--green); border-color:#2E8A5A; color:#fff; box-shadow:0 2px 6px rgba(55,160,106,.3);
+  }
+
   /* ---------- control (right) ---------- */
   .ctrl{background:linear-gradient(#22262A,#15181B);border:1px solid #34393E}
   .ctrl .panel-cap{color:#8A9096}
@@ -240,6 +251,11 @@
         <p class="idle" id="liveTx">버튼을 누르면 여기에 들은 말이 나타납니다</p>
       </div>
 
+      <div class="row">
+        <button class="mini accent" id="readAllBtn">모두 읽기</button>
+        <button class="mini" id="clearBtn">카드 비우기</button>
+      </div>
+
       <div class="cards" id="cards">
         <div class="cards-empty">중요한 말이 카드로 남습니다<br>카드를 누르면 다시 읽어 줍니다</div>
       </div>
@@ -258,11 +274,6 @@
         <button class="mini" id="serBtn">마이크로비트 연결</button>
         <button class="mini" id="demoBtn">시연 문장</button>
       </div>
-      <div class="row">
-        <button class="mini" id="testBtn">소리 시험</button>
-        <button class="mini" id="clearBtn">카드 비우기</button>
-        <button class="mini accent" id="readAllBtn">모두 읽기</button>
-      </div>
 
       <div class="info">
         <div class="kv"><span>저장한 카드</span><b id="cntTx">0</b></div>
@@ -270,33 +281,20 @@
         <div class="meter"><i id="meterFill"></i></div>
       </div>
 
-      <details class="set">
-        <summary>소리 설정</summary>
-
-        <label>목소리
-          <select id="voiceSel"><option value="">자동</option></select>
-        </label>
-
-        <label>읽는 속도 <em id="rateTx">0.85</em>
-          <input type="range" id="rateIn" min="0.5" max="1.4" step="0.05" value="0.85">
-        </label>
-
-        <label>목소리 높이 <em id="pitchTx">1.0</em>
-          <input type="range" id="pitchIn" min="0.6" max="1.5" step="0.05" value="1">
-        </label>
-
-        <label>소리 크기 <em id="volTx">100%</em>
-          <input type="range" id="volIn" min="0" max="1" step="0.05" value="1">
-        </label>
-
-        <label>문장 사이 쉼 <em id="gapTx">보통</em>
-          <input type="range" id="gapIn" min="0" max="2" step="1" value="1">
-        </label>
-
-        <div class="row" style="margin-top:4px">
-          <button class="mini" id="tryBtn">이 설정으로 들어보기</button>
+      <div style="margin-top:20px; background:#1A1E22; border:1px solid #262B30; border-radius:12px; padding:14px;">
+        <div class="panel-cap" style="color:#8A9096; margin-bottom:12px;">소리 직관 설정</div>
+        <div class="row" style="margin-top:0;">
+          <button class="mini" id="btnSpeedDown">느리게 말해줘</button>
+          <button class="mini" id="btnSpeedUp">빠르게 말해줘</button>
         </div>
-      </details>
+        <div class="row">
+          <button class="mini" id="btnVolDown">작게 말해줘</button>
+          <button class="mini" id="btnVolUp">크게 말해줘</button>
+        </div>
+        <div class="row" style="margin-top:12px;">
+          <button class="mini accent" id="testBtn">이 설정으로 소리 시험</button>
+        </div>
+      </div>
 
       <div class="msg" id="msg"></div>
 
@@ -324,6 +322,9 @@ const liveTx=$('liveTx'), cardsEl=$('cards'), ledTx=$('ledTx'),
       sttStat=$('sttStat'), serStat=$('serStat'), modeTx=$('modeTx'),
       cntTx=$('cntTx'), paceTx=$('paceTx'), meterFill=$('meterFill'),
       msgEl=$('msg'), logEl=$('log'), markEl=$('mark');
+
+const btnSpeedDown=$('btnSpeedDown'), btnSpeedUp=$('btnSpeedUp'),
+      btnVolDown=$('btnVolDown'), btnVolUp=$('btnVolUp');
 
 let cards=[], total=0, listening=false, rec=null, demoIdx=0, micStream=null;
 let speaking=false, koVoice=null;
@@ -543,14 +544,26 @@ let resumeTimer=null;
 
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
+const NAT_NUM = {1:'한', 2:'두', 3:'세', 4:'네', 5:'다섯', 6:'여섯', 7:'일곱', 8:'여덟', 9:'아홉', 10:'열', 11:'열한', 12:'열두'};
+
 function toSpeech(s){
-  const g=(typeof SET!=='undefined') ? SET.gap() : 1;
-  const sep = g===0 ? ' ' : (g===1 ? ', ' : '. ');
-  return s
-    .replace(/\s*·\s*/g,sep)
-    .replace(/(\d{1,2}):(\d{2})/g,(m,h,mi)=> mi==='00' ? h+'시' : h+'시 '+parseInt(mi,10)+'분')
-    .replace(/\s{2,}/g,' ')
-    .trim();
+  const sep = '. ';
+  let text = s.replace(/\s*·\s*/g, sep);
+  
+  // 시간(9:30)을 "아홉시 30분" 처럼 고유어로 변환하여 '구시'로 잘못 읽히는 현상 방지
+  text = text.replace(/(\d{1,2}):(\d{2})/g, (m, h, mi) => {
+    const hh = NAT_NUM[parseInt(h, 10)] || h;
+    const mm = mi === '00' ? '' : parseInt(mi, 10) + '분';
+    return hh + '시 ' + mm;
+  });
+  
+  // 하루 3번 -> 하루 세 번으로 변환
+  text = text.replace(/하루\s*(\d+)\s*번/g, (m, n) => {
+    const count = NAT_NUM[parseInt(n, 10)] || n;
+    return '하루 ' + count + '번';
+  });
+
+  return text.replace(/\s{2,}/g,' ').trim();
 }
 
 function waitVoices(){
@@ -565,18 +578,14 @@ function waitVoices(){
   });
 }
 
+let currentRate = 0.85;
+let currentVol = 1.0;
+
 const SET={
-  num(id,dflt){ const el=$(id); const v=el?parseFloat(el.value):NaN; return isNaN(v)?dflt:v; },
-  rate(){ return SET.num('rateIn',0.85); },
-  pitch(){ return SET.num('pitchIn',1); },
-  vol(){ return SET.num('volIn',1); },
-  gap(){ return SET.num('gapIn',1); },
-  voice(){
-    const el=$('voiceSel');
-    if(!el || !el.value) return koVoice;
-    const list=speechSynthesis.getVoices()||[];
-    return list.find(x=>x.name===el.value) || koVoice;
-  }
+  rate: () => currentRate,
+  pitch: () => 1.0,
+  vol: () => currentVol,
+  voice: () => koVoice
 };
 
 function tryRead(text, useVoice){
@@ -887,53 +896,37 @@ function hideMsg(){ msgEl.classList.remove('show'); }
 mainBtn.addEventListener('click',toggle);
 serBtn.addEventListener('click',connectSerial);
 demoBtn.addEventListener('click',demo);
-$('testBtn').addEventListener('click',voiceTest);
-readAllBtn.addEventListener('click',speakAll); // 한 번에 모두 읽기 이벤트 연결
 
-/* ---- 소리 설정 ---- */
-const GAPNAME=['없음','보통','길게'];
-function syncSet(){
-  $('rateTx').textContent = SET.rate().toFixed(2);
-  $('pitchTx').textContent= SET.pitch().toFixed(2);
-  $('volTx').textContent  = Math.round(SET.vol()*100)+'%';
-  $('gapTx').textContent  = GAPNAME[SET.gap()] || '보통';
-}
-['rateIn','pitchIn','volIn','gapIn'].forEach(id=>{
-  const el=$(id);
-  if(el) el.addEventListener('input',syncSet);
+/* ---- 소리 직관 설정 ---- */
+btnSpeedUp.addEventListener('click', async () => {
+  currentRate = Math.min(1.4, currentRate + 0.15);
+  await speak("조금 더 빠르게 말할게요.");
 });
-$('tryBtn').addEventListener('click',()=>speak('또박. 7월 31일 금요일, 오전 9시 30분, 병원'));
 
-function fillVoices(){
-  const sel=$('voiceSel');
-  if(!sel) return;
-  const cur=sel.value;
-  const vs=speechSynthesis.getVoices()||[];
-  const ko=vs.filter(v=>v.lang && v.lang.toLowerCase().replace('_','-').indexOf('ko')===0);
-  const rest=vs.filter(v=>ko.indexOf(v)<0);
-  sel.innerHTML='<option value="">자동으로 고르기</option>';
-  const add=(list,label)=>{
-    if(!list.length) return;
-    const g=document.createElement('optgroup'); g.label=label;
-    list.forEach(v=>{
-      const o=document.createElement('option');
-      o.value=v.name; o.textContent=v.name+' ('+v.lang+')';
-      g.appendChild(o);
-    });
-    sel.appendChild(g);
-  };
-  add(ko,'한국어');
-  add(rest,'그 밖의 언어');
-  if(cur) sel.value=cur;
-}
-if('speechSynthesis' in window){
-  fillVoices();
-  const prev=speechSynthesis.onvoiceschanged;
-  speechSynthesis.onvoiceschanged=()=>{ loadVoices(); fillVoices(); };
-}
-syncSet();
-clearBtn.addEventListener('click',()=>{
-  cards=[]; total=0; render(); updateInfo(); log('카드 비움');
+btnSpeedDown.addEventListener('click', async () => {
+  currentRate = Math.max(0.5, currentRate - 0.15);
+  await speak("조금 더 느리게 말할게요.");
+});
+
+btnVolUp.addEventListener('click', async () => {
+  currentVol = Math.min(1.0, currentVol + 0.2);
+  await speak("조금 더 크게 말할게요.");
+});
+
+btnVolDown.addEventListener('click', async () => {
+  currentVol = Math.max(0.2, currentVol - 0.2);
+  await speak("조금 더 작게 말할게요.");
+});
+
+testBtn.addEventListener('click', async () => {
+  hideMsg();
+  await speak('지금 설정하신 빠르기와 크기입니다. 이렇게 읽어 드릴게요.');
+});
+
+readAllBtn.addEventListener('click', speakAll);
+
+clearBtn.addEventListener('click', () => {
+  cards = []; total = 0; render(); updateInfo(); log('카드 비움');
 });
 
 if(!SR){ sttStat.textContent='지원 안 됨'; }
